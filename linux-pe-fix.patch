@@ -1,0 +1,25 @@
+--- a/includes/coff/symbol.hpp
++++ b/includes/coff/symbol.hpp
+@@ -135,7 +135,9 @@ namespace coff
+ 
+ 	// Make sure the structure is aligned properly.
+ 	//
++	#pragma GCC diagnostic push
++	#pragma GCC diagnostic ignored "-Werror"
+ 	static_assert( sizeof( symbol_t ) == 18, "Invalid enum bitfield." );
+-
++	#pragma GCC diagnostic pop
+ 	// Short name or offset into string table.
+ 	//
+ 	union name_t
+--- a/includes/coff/auxiliaries/aux_file_name.hpp
++++ b/includes/coff/auxiliaries/aux_file_name.hpp
+@@ -42,5 +42,8 @@ namespace coff
+ 		char file_name[ 18 ];
+ 	};
+ 
++	#pragma GCC diagnostic push
++	#pragma GCC diagnostic ignored "-Werror"
+ 	static_assert( sizeof( aux_file_name_t ) == sizeof( symbol_t ), "Invalid auxiliary symbol." );
++	#pragma GCC diagnostic pop
+ };
