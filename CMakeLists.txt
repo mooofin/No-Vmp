@@ -15,9 +15,9 @@ llvm_map_components_to_libnames(LLVM_LIBS core support irreader passes analysis
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(CAPSTONE REQUIRED capstone)
 
-# Submodules - note: linux-pe is in root, CLI11 needs to be added
-if(EXISTS ${CMAKE_SOURCE_DIR}/linux-pe/CMakeLists.txt)
-    add_subdirectory(linux-pe EXCLUDE_FROM_ALL)
+# Submodules - note: linux-pe is now in external/, CLI11 needs to be added
+if(EXISTS ${CMAKE_SOURCE_DIR}/external/linux-pe/CMakeLists.txt)
+    add_subdirectory(external/linux-pe EXCLUDE_FROM_ALL)
 else()
     message(WARNING "linux-pe submodule not found - PE parsing may not work")
 endif()
@@ -51,7 +51,7 @@ add_library(novmp_lib STATIC
 
 target_include_directories(novmp_lib PUBLIC
     ${CMAKE_SOURCE_DIR}/lib
-    ${CMAKE_SOURCE_DIR}/linux-pe/includes
+    ${CMAKE_SOURCE_DIR}/external/linux-pe/includes
     ${LLVM_INCLUDE_DIRS}
     ${CAPSTONE_INCLUDE_DIRS}
 )

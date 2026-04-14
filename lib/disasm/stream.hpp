@@ -17,6 +17,14 @@ namespace vmp::disasm {
 // Thin RAII wrapper around a single capstone instruction.
 struct Insn {
     cs_insn raw;
+    std::optional<cs_detail> detail_copy;
+
+    Insn() = default;
+    explicit Insn(const cs_insn& insn);
+    Insn(const Insn& other);
+    Insn& operator=(const Insn& other);
+    Insn(Insn&& other) noexcept;
+    Insn& operator=(Insn&& other) noexcept;
 
     [[nodiscard]] bool is(unsigned id, std::span<const x86_op_type> ops) const noexcept;
     [[nodiscard]] std::string to_string() const;

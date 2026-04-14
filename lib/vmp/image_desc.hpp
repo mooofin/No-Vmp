@@ -13,7 +13,7 @@ namespace vmp {
 // Result structure for lifted routine
 struct LiftedRoutine {
     std::unique_ptr<ir::LiftContext> context;
-    uint32_t handler_count = 0;
+    size_t handler_count = 0;
     size_t instructions_before = 0;
     size_t instructions_after = 0;
 };

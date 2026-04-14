@@ -3,8 +3,46 @@
 #include <algorithm>
 #include <stdexcept>
 #include <cstring>
+#include <array>
+#include <unordered_set>
 
 namespace vmp::disasm {
+
+Insn::Insn(const cs_insn& insn) : raw(insn) {
+    if (insn.detail) {
+        detail_copy = *insn.detail;
+        raw.detail = &*detail_copy;
+    } else {
+        raw.detail = nullptr;
+    }
+}
+
+Insn::Insn(const Insn& other) : raw(other.raw), detail_copy(other.detail_copy) {
+    raw.detail = detail_copy ? &*detail_copy : nullptr;
+}
+
+Insn& Insn::operator=(const Insn& other) {
+    if (this == &other) return *this;
+    raw = other.raw;
+    detail_copy = other.detail_copy;
+    raw.detail = detail_copy ? &*detail_copy : nullptr;
+    return *this;
+}
+
+Insn::Insn(Insn&& other) noexcept
+    : raw(other.raw), detail_copy(std::move(other.detail_copy)) {
+    raw.detail = detail_copy ? &*detail_copy : nullptr;
+    other.raw.detail = nullptr;
+}
+
+Insn& Insn::operator=(Insn&& other) noexcept {
+    if (this == &other) return *this;
+    raw = other.raw;
+    detail_copy = std::move(other.detail_copy);
+    raw.detail = detail_copy ? &*detail_copy : nullptr;
+    other.raw.detail = nullptr;
+    return *this;
+}
 
 // Insn implementation
 bool Insn::is(unsigned id, std::span<const x86_op_type> ops) const noexcept {
@@ -37,12 +75,11 @@ std::span<const uint8_t> Insn::bytes() const noexcept {
 // Stream implementation
 Stream Stream::operator+(const Stream& rhs) const {
     Stream out;
-    std::unordered_map<int, bool> pushed;
+    std::unordered_set<int> pushed;
     
     for (const auto& entries : {entries_, rhs.entries_}) {
         for (const auto& entry : entries) {
-            if (!pushed[entry.first]) {
-                pushed[entry.first] = true;
+            if (pushed.insert(entry.first).second) {
                 out.entries_.push_back(entry);
             }
         }
@@ -52,8 +89,8 @@ Stream Stream::operator+(const Stream& rhs) const {
 }
 
 Stream& Stream::normalize() {
-    std::sort(entries_.begin(), entries_.end(), 
-        [](const auto& a, const auto& b) { return a.first <= b.first; });
+    std::sort(entries_.begin(), entries_.end(),
+        [](const auto& a, const auto& b) { return a.first < b.first; });
     return *this;
 }
 
@@ -146,7 +183,7 @@ static bool same_reg_family(x86_reg a, x86_reg b) {
 }
 
 TraceResult trace_def(const Stream& stream, x86_reg target_reg, int end, int begin) {
-    std::unordered_map<x86_reg, bool> dependencies;
+    std::unordered_set<x86_reg> dependencies;
     Stream substream;
     
     for (int i = end; i >= begin; --i) {
@@ -179,7 +216,7 @@ TraceResult trace_def(const Stream& stream, x86_reg target_reg, int end, int beg
         
         if (write) {
             for (auto reg : access_list) {
-                if (reg != X86_REG_INVALID) dependencies[reg] = true;
+                if (reg != X86_REG_INVALID) dependencies.insert(reg);
             }
             substream.entries().push_back(stream.entries()[i]);
         }
@@ -188,8 +225,9 @@ TraceResult trace_def(const Stream& stream, x86_reg target_reg, int end, int beg
     }
     
     std::vector<x86_reg> deps;
-    for (const auto& [reg, _] : dependencies) {
-        if (reg != X86_REG_INVALID) deps.push_back(reg);
+    deps.reserve(dependencies.size());
+    for (auto reg : dependencies) {
+        deps.push_back(reg);
     }
     
     TraceResult result;
@@ -199,9 +237,9 @@ TraceResult trace_def(const Stream& stream, x86_reg target_reg, int end, int beg
 }
 
 void Stream::erase_front(int n) {
-    while (n-- > 0 && !entries_.empty()) {
-        entries_.erase(entries_.begin());
-    }
+    if (n <= 0 || entries_.empty()) return;
+    const auto erase_count = std::min<std::size_t>(static_cast<std::size_t>(n), entries_.size());
+    entries_.erase(entries_.begin(), entries_.begin() + static_cast<std::ptrdiff_t>(erase_count));
 }
 
 void Stream::erase_range(int start, int end) {
@@ -269,8 +307,22 @@ Stream Deobfuscator::get(uint32_t rva) {
     
     uint32_t rva_rip = rva;
     int instruction_idx = 0;
+    std::vector<uint64_t> call_return_stack;
+    std::unordered_set<uint64_t> seen_states;
+    static constexpr size_t kMaxSteps = 0x20000;
+    size_t steps = 0;
     
     while (true) {
+        if (++steps > kMaxSteps) {
+            throw std::runtime_error("Deobfuscation step budget exceeded");
+        }
+
+        const uint64_t state_key =
+            (static_cast<uint64_t>(rva_rip) << 8) ^ (call_return_stack.size() & 0xFFull);
+        if (!seen_states.insert(state_key).second) {
+            throw std::runtime_error("Deobfuscation loop detected");
+        }
+
         const uint8_t* code = impl_->resolver(rva_rip);
         if (!code) {
             throw std::runtime_error("Invalid RVA in deobfuscate");
@@ -284,9 +336,9 @@ Stream Deobfuscator::get(uint32_t rva) {
         
         Insn wrapped{*insn};
         
-        // Check for JMP/CALL with immediate
-        bool is_jmp_imm = (insn->id == X86_INS_JMP) && wrapped.is(X86_INS_JMP, std::vector<x86_op_type>{X86_OP_IMM});
-        bool is_call_imm = (insn->id == X86_INS_CALL) && wrapped.is(X86_INS_CALL, std::vector<x86_op_type>{X86_OP_IMM});
+        // Check for JMP/CALL with immediate - use std::array to avoid heap allocation
+        bool is_jmp_imm = (insn->id == X86_INS_JMP) && wrapped.is(X86_INS_JMP, std::array{x86_op_type{X86_OP_IMM}});
+        bool is_call_imm = (insn->id == X86_INS_CALL) && wrapped.is(X86_INS_CALL, std::array{x86_op_type{X86_OP_IMM}});
         bool is_ret = (insn->id == X86_INS_RET);
         bool is_indirect_jmp = (insn->id == X86_INS_JMP) && !is_jmp_imm;
         
@@ -294,6 +346,7 @@ Stream Deobfuscator::get(uint32_t rva) {
             // Follow call target
             const auto& x86 = insn->detail->x86;
             if (x86.op_count > 0 && x86.operands[0].type == X86_OP_IMM) {
+                call_return_stack.push_back(rva_rip + insn->size);
                 rva_rip = static_cast<uint32_t>(x86.operands[0].imm);
             }
             // Don't add CALL to stream when inlining
@@ -305,7 +358,16 @@ Stream Deobfuscator::get(uint32_t rva) {
                 rva_rip = static_cast<uint32_t>(x86.operands[0].imm);
             }
         }
-        else if (is_indirect_jmp || is_ret) {
+        else if (is_ret) {
+            cs_free(insn, count);
+            if (!call_return_stack.empty()) {
+                rva_rip = static_cast<uint32_t>(call_return_stack.back());
+                call_return_stack.pop_back();
+                continue;
+            }
+            break;
+        }
+        else if (is_indirect_jmp) {
             // Stop at indirect jump or ret
             cs_free(insn, count);
             break;

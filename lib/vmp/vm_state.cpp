@@ -29,7 +29,8 @@ disasm::Stream VmState::unroll() const {
 
 const uint8_t* VmState::peek_vip(uint32_t num_bytes) const {
     if (dir_vip == VipDirection::Backward) {
-        if (vip < num_bytes) {
+        // Explicit comparison to avoid overflow/underflow edge cases
+        if (vip < static_cast<uint64_t>(num_bytes)) {
             throw std::runtime_error("VIP underflow in backward stream");
         }
         return img->rva_to_ptr<uint8_t>(static_cast<uint32_t>(vip - num_bytes));

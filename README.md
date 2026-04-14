@@ -1,9 +1,34 @@
-wip: modern fork of NoVmp as my attempt to learning VMProtect internals
+No-Vmp
+======
 
-Replaced VTIL with an LLVM IR backend to better understand the lifting pipeline, and started implementing an early VMP to LLVM translation with the opcode table about halfway done. Refactored the codebase to use C++23 features like jthread, semaphore, span, and println, switched to using Capstone directly instead of the vtil::amd64 wrapper, added CLI11 for argument parsing, and introduced a shared_mutex based cache for deobfuscation experiments.
+No-Vmp tries to devirtualize VMProtect 3.x by lifting handlers into LLVM IR. It mostly works. Sometimes it doesn't. The point was understanding how VMProtect actually works under the hood.
 
+This fork modernizes can1357's original code: CMake, C++23, all that. The old implementation sits in `legacy/` if you need it for reference. Not maintained, just there.
 
+Building
+--------
 
-very early and not functional, mostly a learning exercise to understand VMProtect 3.x
+Straightforward enough:
 
-original work by can1357
+    mkdir build && cd build
+    cmake .. -DCMAKE_BUILD_TYPE=Release
+    make -j$(nproc)
+
+Usage
+-----
+
+Feed it an unpacked PE (MZ/PE headers, not ELF):
+
+    ./build/novmp <file.exe> --output ./out
+
+What's inside
+-------------
+
+`src/` has the CLI entrypoint. `lib/` has the actual work: disassembly glue, VM state tracking, emulator hooks for keys, and the LLVM backend. We use `linux-pe` for PE parsing because life's too short to write another PE parser.
+
+Status
+------
+
+Incomplete. Some binaries lift fine, others break, and VMProtect keeps changing. Main goal is figuring out the internals and getting IR you can actually read. Don't expect too much.
+
+Credits to can1357.

@@ -102,13 +102,17 @@ Instruction classify(VmState* vstate, const disasm::Stream& stream) {
     
     if (stream.empty()) return ins;
     
-    // Extract parameters from loadc instructions
+    // Extract parameters from loadc instructions and track register writes
     for (size_t i = 0; i < stream.size(); ++i) {
         if (i_loadc(stream[i])) {
             auto ops = stream[i].operands();
             if (ops.size() >= 2 && ops[1].type == X86_OP_IMM) {
                 ins.params.push_back(ops[1].imm);
                 ins.param_sizes.push_back(get_param_size(stream[i]));
+                // Track which virtual register this loadc targets
+                if (ops[0].type == X86_OP_REG) {
+                    ins.ctx_writes.insert(static_cast<uint8_t>(ops[0].reg));
+                }
             }
         }
     }
@@ -130,6 +134,11 @@ Instruction classify(VmState* vstate, const disasm::Stream& stream) {
                 ins.stack_delta -= sz;
                 current_offset += sz;
                 has_vsp_write = true;
+                // Track if this writes to a register (VPUSHV)
+                auto ops = insn.operands();
+                if (ops.size() >= 2 && ops[1].type == X86_OP_REG) {
+                    ins.ctx_writes.insert(static_cast<uint8_t>(ops[1].reg));
+                }
                 break;
             }
         }
@@ -142,6 +151,11 @@ Instruction classify(VmState* vstate, const disasm::Stream& stream) {
                 ins.stack_delta += sz;
                 current_offset -= sz;
                 has_vsp_read = true;
+                // Track which register is being popped into
+                auto ops = insn.operands();
+                if (ops.size() >= 1 && ops[0].type == X86_OP_REG) {
+                    ins.ctx_writes.insert(static_cast<uint8_t>(ops[0].reg));
+                }
                 break;
             }
         }
@@ -191,12 +205,58 @@ Instruction classify(VmState* vstate, const disasm::Stream& stream) {
             case X86_INS_CMP:
                 if (ins.op == "VUNK") ins.op = "VCMP";
                 break;
-            case X86_INS_JMP:
-                if (ins.op == "VUNK") ins.op = "VJMP";
+            case X86_INS_JMP: {
+                // Check if this is VCALL or VJMP
+                // VCALL: pops target, pushes return address, net stack delta = 0 or positive
+                // VJMP: just pops target, net stack delta = negative (consuming the target)
+                if (ins.stack_delta >= 0 && ins.params.size() >= 2) {
+                    // Likely VCALL - has return address push
+                    ins.op = "VCALL";
+                } else {
+                    if (ins.op == "VUNK") ins.op = "VJMP";
+                }
+                break;
+            }
+            case X86_INS_JA: case X86_INS_JAE: case X86_INS_JB: case X86_INS_JBE:
+            case X86_INS_JE: case X86_INS_JG: case X86_INS_JGE: case X86_INS_JL:
+            case X86_INS_JLE: case X86_INS_JNE: case X86_INS_JNO: case X86_INS_JNP:
+            case X86_INS_JNS: case X86_INS_JO: case X86_INS_JP: case X86_INS_JS:
+                if (ins.op == "VUNK") ins.op = "VJCC";
                 break;
             case X86_INS_RET:
                 if (ins.op == "VUNK") ins.op = "VRET";
                 break;
+        }
+        
+        // Check for VMEXIT pattern: reads from VSP then returns
+        if (insn.is(X86_INS_MOV, std::vector<x86_op_type>{X86_OP_REG, X86_OP_MEM})) {
+            auto ops = insn.operands();
+            if (ops.size() >= 2 && ops[1].mem.base == vstate->reg_vsp) {
+                // Check if followed by JMP to that register
+                for (size_t j = i + 1; j < stream.size() && j < i + 5; ++j) {
+                    auto jmp_ops = stream[j].operands();
+                    if (stream[j].is(X86_INS_JMP, std::vector<x86_op_type>{X86_OP_REG})) {
+                        if (jmp_ops.size() >= 1 && jmp_ops[0].reg == ops[0].reg) {
+                            ins.op = "VMEXIT";
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Check for VMSWAP pattern: complex register shuffling
+        if (insn.is(X86_INS_MOVABS, std::vector<x86_op_type>{X86_OP_REG, X86_OP_IMM})) {
+            // Count register moves/exchanges in stream
+            int reg_move_count = 0;
+            for (size_t j = 0; j < stream.size(); ++j) {
+                if (stream[j].is(X86_INS_MOV, std::vector<x86_op_type>{X86_OP_REG, X86_OP_REG}) ||
+                    stream[j].is(X86_INS_XCHG, std::vector<x86_op_type>{X86_OP_REG, X86_OP_REG})) {
+                    reg_move_count++;
+                }
+            }
+            if (reg_move_count >= 3 && ins.op == "VUNK") {
+                ins.op = "VMSWAP";
+            }
         }
     }
     

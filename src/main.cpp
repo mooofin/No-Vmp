@@ -92,7 +92,8 @@ int main(int argc, char** argv) {
 
             try {
                 vmp::VmState state{ desc.get(), vr_.jmp_rva };
-                auto lctx = vmp::ir::lift_routine(state);
+                size_t handler_count = 0, ins_before = 0, ins_after = 0;
+                auto lctx = vmp::ir::lift_routine(state, handler_count, ins_before, ins_after);
 
                 if (desc->opts.optimize)
                     lctx->optimize();
@@ -112,8 +113,9 @@ int main(int argc, char** argv) {
                 }
 
                 ++ok;
-                std::println("[+] {:08x} lifted ({} instructions reduced)",
-                             vr_.jmp_rva, 0 /* fill from lctx */);
+                size_t reduced = (ins_before > ins_after) ? (ins_before - ins_after) : 0;
+                std::println("[+] {:08x} lifted ({} handlers, {} -> {} instructions, {} reduced)",
+                             vr_.jmp_rva, handler_count, ins_before, ins_after, reduced);
             } catch (const std::exception& ex) {
                 ++fail;
                 std::println(stderr, "[-] {:08x} failed: {}", vr_.jmp_rva, ex.what());

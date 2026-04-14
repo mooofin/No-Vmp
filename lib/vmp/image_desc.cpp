@@ -1,6 +1,7 @@
 #include "image_desc.hpp"
 #include <stdexcept>
 #include <algorithm>
+#include <cstring>
 
 namespace vmp {
 
@@ -84,8 +85,9 @@ void ImageDesc::discover_vmenter() {
                 continue;
             }
             
-            // Compute jump target RVA
-            int32_t rel32 = *reinterpret_cast<int32_t*>(&it[1]);
+            // Compute jump target RVA - use memcpy to avoid strict aliasing UB
+            int32_t rel32;
+            std::memcpy(&rel32, &it[1], sizeof(rel32));
             uint32_t jmp_rva = scn->virtual_address + (it - scn_begin) + 5 + rel32;
             
             // Skip if target is in the same section
@@ -116,7 +118,8 @@ void ImageDesc::discover_vmenter() {
             // Found VMEnter!
             virt_routines_.push_back(VirtualRoutine{
                 .jmp_rva = jmp_rva,
-                .mid_routine = mid_func
+                .mid_routine = mid_func,
+                .result = nullptr
             });
         }
     }
@@ -127,7 +130,8 @@ void ImageDesc::set_target_rvas(std::span<const uint32_t> rvas) {
     for (uint32_t rva : rvas) {
         virt_routines_.push_back(VirtualRoutine{
             .jmp_rva = rva,
-            .mid_routine = false
+            .mid_routine = false,
+            .result = nullptr
         });
     }
 }
