@@ -31,13 +31,11 @@ cc_library(
         "//tests:__pkg__",
         "//tests/fuzz:__pkg__",
     ],
-    implementation_deps = [
-        "@llvm//:llvm",
-    ],
     deps = [
         "//lib/disasm:stream",
         "//lib/emulator",
         "//third_party/linux-pe:linux_pe",
+        "@llvm//:llvm",
     ],
 )
 

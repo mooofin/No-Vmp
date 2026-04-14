@@ -67,6 +67,9 @@ jobs:
 
   coverage:
     runs-on: ubuntu-latest
+    env:
+      CC: clang
+      CXX: clang++
     steps:
       - uses: actions/checkout@v4
 
@@ -77,10 +80,20 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y llvm-17-dev libcapstone-dev clang-17 lcov
+          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-17 100
+          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-17 100
+
+      - name: Cache Bazel
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/bazel
+          key: bazel-${{ runner.os }}-coverage-${{ hashFiles('**/WORKSPACE', '**/MODULE.bazel') }}
+          restore-keys: |
+            bazel-${{ runner.os }}-
 
       - name: Generate coverage
         run: |
-          bazel coverage //tests:all_tests --test_output=all
+          bazel coverage //tests:all_tests --test_output=errors --instrumentation_filter='//lib[/:]'
           ./coverage.sh
 
       - name: Upload coverage report
