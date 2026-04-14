@@ -2,11 +2,14 @@ load("@rules_cc//cc:defs.bzl", "cc_binary")
 
 package(default_visibility = ["//visibility:private"])
 
-cc_binary(
-    name = "lift_bench",
-    srcs = ["lift_bench.cpp"],
-    deps = [
-        "//lib/vmp:vmp",
-        "@google_benchmark//:benchmark",
-    ],
-)
+# TODO: Re-enable when google_benchmark BCR dep is stable
+# cc_binary(
+#     name = "lift_bench",
+#     srcs = ["lift_bench.cpp"],
+#     deps = [
+#         "//lib/vmp:vmp",
+#         "@google_benchmark//:benchmark",
+#     ],
+# )
+
+exports_files(["lift_bench.cpp"])

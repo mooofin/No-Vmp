@@ -32,8 +32,8 @@ llvm = llvm_configure(name = "llvm")
 capstone_configure = use_repo_rule("//:capstone_configure.bzl", "capstone_configure")
 capstone = capstone_configure(name = "capstone")
 
-# Google Benchmark
-bazel_dep(name = "google_benchmark", version = "1.8.2", dev_dependency = True)
+# Google Benchmark - disabled (BCR dep has rules_foreign_cc issues)
+# bazel_dep(name = "google_benchmark", version = "1.8.2", dev_dependency = True)
 
 # GoogleTest - fetched directly with custom BUILD
 gtest = http_archive(

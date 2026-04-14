@@ -29,6 +29,7 @@ cc_library(
         "//:__pkg__",
         "//src:__pkg__",
         "//tests:__pkg__",
+        "//tests/fuzz:__pkg__",
     ],
     implementation_deps = [
         "@llvm//:llvm",
