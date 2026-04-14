@@ -1,0 +1,31 @@
+# Bazel configuration for No-Vmp
+
+# Bzlmod enabled (use MODULE.bazel)
+common --enable_bzlmod=true
+
+# Suppress version mismatch warnings (dependencies bring newer versions)
+common --check_direct_dependencies=off
+
+# C++ standard
+build --cxxopt=-std=c++23
+build --host_cxxopt=-std=c++23
+
+# Test settings
+build --test_output=errors
+build --test_summary=detailed
+test --test_output=all
+test --test_summary=short
+
+# Sanitizer configs
+build:asan --copt=-fsanitize=address
+build:asan --copt=-fno-omit-frame-pointer
+build:asan --linkopt=-fsanitize=address
+
+build:ubsan --copt=-fsanitize=undefined
+build:ubsan --copt=-fno-omit-frame-pointer
+build:ubsan --linkopt=-fsanitize=undefined
+
+# Coverage
+build:coverage --copt=-fprofile-instr-generate
+build:coverage --copt=-fcoverage-mapping
+build:coverage --linkopt=-fprofile-instr-generate

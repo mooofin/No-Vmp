@@ -1,0 +1,6 @@
+# Ignore directories not part of Bazel build
+build/
+.cache/
+.vscode/
+.idea/
+*.original.md

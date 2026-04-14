@@ -376,3 +376,11 @@ FodyWeavers.xsd
 build/
 Capstone/
 Keystone/
+
+## Bazel
+bazel-*
+.cache/
+*.original.md
+
+# Keep test outputs in repo
+test_outputs/*.log

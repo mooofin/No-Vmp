@@ -1,0 +1,69 @@
+"""No-Vmp build module."""
+
+module(name = "no_vmp", version = "0.1.0")
+
+bazel_dep(name = "rules_cc", version = "0.0.9")
+bazel_dep(name = "bazel_skylib", version = "1.5.0")
+
+# Non-BCR dependencies fetched via repository rules
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+# CLI11 - command line parsing library
+cli11 = http_archive(
+    name = "cli11",
+    urls = ["https://github.com/CLIUtils/CLI11/archive/refs/tags/v2.4.2.tar.gz"],
+    strip_prefix = "CLI11-2.4.2",
+    build_file_content = """
+load("@rules_cc//cc:defs.bzl", "cc_library")
+cc_library(
+    name = "cli11",
+    hdrs = glob(["include/**/*.hpp"]),
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+)
+""",
+)
+
+# System LLVM - detected via llvm-config
+llvm_configure = use_repo_rule("//:llvm_configure.bzl", "llvm_configure")
+llvm = llvm_configure(name = "llvm")
+
+# System Capstone - detected via pkg-config
+capstone_configure = use_repo_rule("//:capstone_configure.bzl", "capstone_configure")
+capstone = capstone_configure(name = "capstone")
+
+# GoogleTest - fetched directly with custom BUILD
+gtest = http_archive(
+    name = "com_google_googletest",
+    urls = ["https://github.com/google/googletest/archive/refs/tags/v1.14.0.tar.gz"],
+    strip_prefix = "googletest-1.14.0",
+    build_file_content = """
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "gtest",
+    srcs = glob([
+        "googletest/src/*.cc",
+    ], exclude = ["googletest/src/gtest-all.cc"]),
+    hdrs = glob([
+        "googletest/include/**/*.h",
+        "googletest/src/*.h",
+    ]),
+    includes = ["googletest/include", "googletest"],
+    linkopts = ["-lpthread"],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "gtest_main",
+    srcs = ["googletest/src/gtest_main.cc"],
+    hdrs = glob([
+        "googletest/include/**/*.h",
+        "googletest/src/*.h",
+    ]),
+    includes = ["googletest/include", "googletest"],
+    deps = [":gtest"],
+    visibility = ["//visibility:public"],
+)
+""",
+)

@@ -1,0 +1,18 @@
+Computing main repo mapping: 
+Loading: 
+Loading: 0 packages loaded
+Analyzing: 4 targets (0 packages loaded, 0 targets configured)
+Analyzing: 4 targets (0 packages loaded, 0 targets configured)
+
+INFO: Analyzed 4 targets (0 packages loaded, 0 targets configured).
+INFO: Found 4 test targets...
+INFO: Elapsed time: 0.075s, Critical Path: 0.00s
+INFO: 1 process: 4 action cache hit, 1 internal.
+INFO: Build completed successfully, 1 total action
+//tests:disasm_test                                             (cached) PASSED in 0.0s
+//tests:emulator_test                                           (cached) PASSED in 0.0s
+//tests:integration_test                                        (cached) PASSED in 0.0s
+//tests:rkey_test                                               (cached) PASSED in 0.0s
+
+Executed 0 out of 4 tests: 4 tests pass.
+There were tests whose specified size is too big. Use the --test_verbose_timeout_warnings command line option to see which ones these are.
