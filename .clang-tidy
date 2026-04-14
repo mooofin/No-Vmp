@@ -1,0 +1,18 @@
+---
+Checks: |
+  cppcoreguidelines-*,
+  readability-*,
+  performance-*,
+  modernize-*,
+  bugprone-*,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -readability-named-parameter,
+  -modernize-use-trailing-return-type
+
+HeaderFilterRegex: '.*'
+
+CheckOptions:
+  - key: readability-function-cognitive-complexity.Threshold
+    value: 50
+  - key: cppcoreguidelines-special-member-functions.AllowSoleDefaultDtor
+    value: 1

@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        llvm: [15, 16, 17, 18]
+    env:
+      CC: clang
+      CXX: clang++
+      LLVM_VERSION: ${{ matrix.llvm }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bazelisk
+        uses: bazelbuild/setup-bazelisk@v3
+        with:
+          bazelisk-version: v1.20.0
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            llvm-${{ matrix.llvm }}-dev \
+            libcapstone-dev \
+            clang-${{ matrix.llvm }}
+          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-${{ matrix.llvm }} 100
+          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-${{ matrix.llvm }} 100
+
+      - name: Cache Bazel
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/bazel
+          key: bazel-${{ runner.os }}-llvm${{ matrix.llvm }}-${{ hashFiles('**/WORKSPACE', '**/MODULE.bazel') }}
+          restore-keys: |
+            bazel-${{ runner.os }}-llvm${{ matrix.llvm }}-
+            bazel-${{ runner.os }}-
+
+      - name: Build
+        run: bazel build //...
+
+      - name: Test
+        run: bazel test //... --test_output=all
+
+      - name: Build release binary
+        run: bazel build //:novmp -c opt
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        if: matrix.llvm == 17
+        with:
+          name: novmp-linux
+          path: bazel-bin/src/novmp
+
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bazelisk
+        uses: bazelbuild/setup-bazelisk@v3
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y llvm-17-dev libcapstone-dev clang-17 lcov
+
+      - name: Generate coverage
+        run: |
+          bazel coverage //tests:all_tests --test_output=all
+          ./coverage.sh
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
